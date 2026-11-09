@@ -1,0 +1,65 @@
+﻿# Docker Compose configuration for our Rails Task Manager.
+
+services:
+
+  # MySQL database container.
+  db:
+    image: mysql:8.4
+    container_name: taskmanager-db
+    environment:
+      MYSQL_DATABASE: taskmanager_development
+      MYSQL_USER: taskuser
+      MYSQL_PASSWORD: taskpassword
+      MYSQL_ROOT_PASSWORD: rootpassword
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - taskmanager_network
+
+  # Ruby on Rails application container.
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: taskmanager-app
+    environment:
+      RAILS_ENV: development
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: taskmanager_development
+      DB_USER: taskuser
+      DB_PASSWORD: taskpassword
+      RAILS_MAX_THREADS: 3
+      WEB_CONCURRENCY: 1
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    volumes:
+      - rails_tmp:/app/tmp
+      - rails_log:/app/log
+    healthcheck:
+      test: ["CMD", "ruby", "-rnet/http", "-e", "exit(Net::HTTP.get_response(URI('http://127.0.0.1:3000/up')).is_a?(Net::HTTPSuccess) ? 0 : 1)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    networks:
+      - taskmanager_network
+
+# Persistent named volumes.
+volumes:
+  mysql_data:
+  rails_tmp:
+  rails_log:
+
+# Dedicated network for Rails and MySQL.
+networks:
+  taskmanager_network:
+    driver: bridge

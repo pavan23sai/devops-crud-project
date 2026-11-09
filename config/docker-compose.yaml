@@ -1,0 +1,92 @@
+
+# Docker Compose configuration for our Rails Task Manager.
+
+services:
+
+  # MySQL database container.
+  db:
+    image: mysql:8.4
+    container_name: taskmanager-db
+
+    # Create the application database and database user.
+    environment:
+      MYSQL_DATABASE: taskmanager_development
+      MYSQL_USER: taskuser
+      MYSQL_PASSWORD: taskpassword
+      MYSQL_ROOT_PASSWORD: rootpassword
+
+    # Persist database records even after container removal.
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+    # Check whether MySQL is ready to accept connections.
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+    # Connect MySQL to our application network.
+    networks:
+      - taskmanager_network
+
+  # Ruby on Rails application container.
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+
+    container_name: taskmanager-app
+
+    # Configure Rails and its database connection.
+    environment:
+      RAILS_ENV: development
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_NAME: taskmanager_development
+      DB_USER: taskuser
+      DB_PASSWORD: taskpassword
+      RAILS_MAX_THREADS: 3
+      WEB_CONCURRENCY: 1
+
+    # Wait until MySQL is healthy before starting Rails.
+    depends_on:
+      db:
+        condition: service_healthy
+
+    # Make the application accessible from Windows.
+    ports:
+      - "3000:3000"
+
+    # Persist Rails temporary files and logs.
+    volumes:
+      - rails_tmp:/app/tmp
+      - rails_log:/app/log
+
+    # Check the Rails health endpoint.
+    healthcheck:
+      test:
+        - CMD
+        - ruby
+        - -rnet/http
+        - -e
+        - "exit(Net::HTTP.get_response(URI('http://127.0.0.1:3000/up')).is_a?(Net::HTTPSuccess) ? 0 : 1)"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+
+    # Connect Rails to the same network as MySQL.
+    networks:
+      - taskmanager_network
+
+# Persistent named volumes.
+volumes:
+  mysql_data:
+  rails_tmp:
+  rails_log:
+
+# Dedicated network for Rails and MySQL communication.
+networks:
+  taskmanager_network:
+    driver: bridge

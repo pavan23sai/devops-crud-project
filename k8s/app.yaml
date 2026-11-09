@@ -1,0 +1,196 @@
+
+# 1. Store database credentials.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: taskmanager-secret
+type: Opaque
+stringData:
+  DB_USER: taskuser
+  DB_PASSWORD: taskpassword
+  MYSQL_ROOT_PASSWORD: rootpassword
+
+---
+# 2. Create persistent storage for MySQL.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: mysql-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 2Gi
+
+---
+# 3. Deploy the MySQL database.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mysql
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mysql
+  template:
+    metadata:
+      labels:
+        app: mysql
+    spec:
+      containers:
+        - name: mysql
+          image: mysql:8.4
+          ports:
+            - containerPort: 3306
+          env:
+            - name: MYSQL_DATABASE
+              value: taskmanager_development
+            - name: MYSQL_USER
+              valueFrom:
+                secretKeyRef:
+                  name: taskmanager-secret
+                  key: DB_USER
+            - name: MYSQL_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: taskmanager-secret
+                  key: DB_PASSWORD
+            - name: MYSQL_ROOT_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: taskmanager-secret
+                  key: MYSQL_ROOT_PASSWORD
+
+          # Store database files on persistent storage.
+          volumeMounts:
+            - name: mysql-storage
+              mountPath: /var/lib/mysql
+
+          # Check whether MySQL is ready.
+          readinessProbe:
+            exec:
+              command:
+                - sh
+                - -c
+                - mysqladmin ping -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PASSWORD"
+            initialDelaySeconds: 20
+            periodSeconds: 10
+
+          # Set resource requests and limits.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+      volumes:
+        - name: mysql-storage
+          persistentVolumeClaim:
+            claimName: mysql-pvc
+
+---
+# 4. Create an internal MySQL Service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: mysql
+spec:
+  selector:
+    app: mysql
+  ports:
+    - port: 3306
+      targetPort: 3306
+
+---
+# 5. Deploy the Rails application.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: taskmanager
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: taskmanager
+  template:
+    metadata:
+      labels:
+        app: taskmanager
+    spec:
+      containers:
+        - name: rails
+          image: devops-crud-project-app:latest
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 3000
+
+          # Connect Rails to the MySQL Service.
+          env:
+            - name: RAILS_ENV
+              value: development
+            - name: PORT
+              value: "3000"
+            - name: DB_HOST
+              value: mysql
+            - name: DB_PORT
+              value: "3306"
+            - name: DB_NAME
+              value: taskmanager_development
+            - name: DB_USER
+              valueFrom:
+                secretKeyRef:
+                  name: taskmanager-secret
+                  key: DB_USER
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: taskmanager-secret
+                  key: DB_PASSWORD
+            - name: RAILS_MAX_THREADS
+              value: "3"
+            - name: WEB_CONCURRENCY
+              value: "0"
+
+          # Check whether Rails is ready to receive traffic.
+          readinessProbe:
+            httpGet:
+              path: /up
+              port: 3000
+            initialDelaySeconds: 30
+            periodSeconds: 10
+
+          # Restart Rails if its health endpoint stops responding.
+          livenessProbe:
+            httpGet:
+              path: /up
+              port: 3000
+            initialDelaySeconds: 60
+            periodSeconds: 20
+
+          # Set resource requests and limits.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+---
+# 6. Expose Rails using a NodePort Service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: taskmanager-service
+spec:
+  type: NodePort
+  selector:
+    app: taskmanager
+  ports:
+    - port: 3000
+      targetPort: 3000
+      nodePort: 30080

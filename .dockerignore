@@ -1,0 +1,21 @@
+# Do not copy Git history into the Docker image.
+.git
+.gitignore
+
+# Exclude local environment files and secrets.
+.env
+.env.*
+
+# Exclude installed dependencies from the Windows host.
+.bundle
+vendor/bundle
+
+# Exclude logs and temporary files.
+log/*
+tmp/*
+
+# Exclude test coverage reports.
+coverage/
+
+# Exclude local editor settings.
+.vscode/

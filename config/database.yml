@@ -1,0 +1,29 @@
+
+# Common database settings shared by all environments.
+default: &default
+  adapter: mysql2          # Use the MySQL database adapter.
+  encoding: utf8mb4        # Support normal text and Unicode characters.
+  pool: <%= ENV.fetch("RAILS_MAX_THREADS") { 5 } %> # Maximum DB connections.
+
+  # Read database credentials from environment variables.
+  username: <%= ENV.fetch("DB_USER") { "taskuser" } %>
+  password: <%= ENV.fetch("DB_PASSWORD") { "taskpassword" } %>
+
+  # "db" is the MySQL service name in Docker Compose.
+  host: <%= ENV.fetch("DB_HOST") { "db" } %>
+  port: 3306               # Default MySQL port.
+
+# Database used during development.
+development:
+  <<: *default
+  database: taskmanager_development
+
+# Database used when running automated tests.
+test:
+  <<: *default
+  database: taskmanager_test
+
+# Database used when the application is deployed.
+production:
+  <<: *default
+  database: taskmanager_production

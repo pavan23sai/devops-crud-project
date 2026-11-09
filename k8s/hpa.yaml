@@ -1,0 +1,28 @@
+
+# Automatically scale the Rails application based on CPU usage.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+
+metadata:
+  name: taskmanager-hpa
+
+spec:
+  # Connect the autoscaler to the Rails Deployment.
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: taskmanager
+
+  # Keep at least 1 pod and allow up to 3 pods.
+  minReplicas: 1
+  maxReplicas: 3
+
+  # Add pods when average CPU usage exceeds 70%
+  # of the CPU request configured in the Deployment.
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
