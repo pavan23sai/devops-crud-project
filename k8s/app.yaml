@@ -4,6 +4,9 @@ apiVersion: v1
 kind: Secret
 metadata:
   name: taskmanager-secret
+  namespace: default
+  labels:
+    app: taskmanager
 type: Opaque
 stringData:
   DB_USER: taskuser
@@ -16,6 +19,9 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: mysql-pvc
+  namespace: default
+  labels:
+    app: mysql
 spec:
   accessModes:
     - ReadWriteOnce
@@ -29,8 +35,13 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mysql
+  namespace: default
+  labels:
+    app: mysql
 spec:
   replicas: 1
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: mysql
@@ -77,6 +88,8 @@ spec:
                 - mysqladmin ping -h 127.0.0.1 -uroot -p"$MYSQL_ROOT_PASSWORD"
             initialDelaySeconds: 20
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 5
 
           # Set resource requests and limits.
           resources:
@@ -85,7 +98,7 @@ spec:
               memory: 256Mi
             limits:
               cpu: 500m
-              memory: 512Mi
+              memory: 768Mi
 
       volumes:
         - name: mysql-storage
@@ -98,7 +111,11 @@ apiVersion: v1
 kind: Service
 metadata:
   name: mysql
+  namespace: default
+  labels:
+    app: mysql
 spec:
+  type: ClusterIP
   selector:
     app: mysql
   ports:
@@ -111,6 +128,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: taskmanager
+  namespace: default
+  labels:
+    app: taskmanager
 spec:
   replicas: 1
   selector:
@@ -162,6 +182,8 @@ spec:
               port: 3000
             initialDelaySeconds: 30
             periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
 
           # Restart Rails if its health endpoint stops responding.
           livenessProbe:
@@ -169,7 +191,9 @@ spec:
               path: /up
               port: 3000
             initialDelaySeconds: 60
-            periodSeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 6
 
           # Set resource requests and limits.
           resources:
@@ -186,6 +210,9 @@ apiVersion: v1
 kind: Service
 metadata:
   name: taskmanager-service
+  namespace: default
+  labels:
+    app: taskmanager
 spec:
   type: NodePort
   selector:

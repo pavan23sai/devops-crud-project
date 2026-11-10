@@ -19,3 +19,4 @@ coverage/
 
 # Exclude local editor settings.
 .vscode/
+config/master.key

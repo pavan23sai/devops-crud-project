@@ -1,0 +1,245 @@
+﻿<div class="app-container">
+  <header class="topbar">
+    <div>
+      <h1>TaskFlow</h1>
+      <p>Advanced Task Manager</p>
+    </div>
+    <span class="status-badge">● System Online</span>
+  </header>
+
+  <main>
+    <section class="welcome">
+      <h2>Manage your work smarter.</h2>
+      <p>Organize your tasks and track your progress.</p>
+    </section>
+
+    <section class="stats">
+      <div class="stat-card">
+        <span>Total Tasks</span>
+        <strong id="totalTasks">0</strong>
+      </div>
+      <div class="stat-card">
+        <span>Completed</span>
+        <strong id="completedTasks">0</strong>
+      </div>
+      <div class="stat-card">
+        <span>Pending</span>
+        <strong id="pendingTasks">0</strong>
+      </div>
+    </section>
+
+    <section class="task-panel">
+      <h2 id="formHeading">Add a New Task</h2>
+      <form id="taskForm">
+        <input id="taskTitle" type="text" maxlength="200"
+               placeholder="What needs to be done?" required>
+        <button type="submit" id="saveButton">Add Task</button>
+        <button type="button" id="cancelButton" hidden>Cancel</button>
+      </form>
+      <p id="message" role="status"></p>
+    </section>
+
+    <section class="task-panel">
+      <div class="task-toolbar">
+        <h2>Your Tasks</h2>
+        <input id="searchInput" type="search"
+               placeholder="Search tasks...">
+        <select id="filterSelect">
+          <option value="all">All Tasks</option>
+          <option value="pending">Pending</option>
+          <option value="completed">Completed</option>
+        </select>
+      </div>
+      <div id="taskList"></div>
+      <p id="emptyMessage">No tasks found. Add your first task!</p>
+    </section>
+  </main>
+
+  <footer>TaskFlow · Powered by Ruby on Rails and MySQL</footer>
+</div>
+
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const API = "/tasks";
+  let tasks = [];
+  let editingId = null;
+
+  const form = document.getElementById("taskForm");
+  const titleInput = document.getElementById("taskTitle");
+  const taskList = document.getElementById("taskList");
+  const message = document.getElementById("message");
+  const filter = document.getElementById("filterSelect");
+  const search = document.getElementById("searchInput");
+
+  // Display a message to the user.
+  function showMessage(text, error = false) {
+    message.textContent = text;
+    message.style.color = error ? "#dc2626" : "#15803d";
+  }
+
+  // Retrieve tasks from the Rails API.
+  async function loadTasks() {
+    try {
+      const response = await fetch(API);
+      if (!response.ok) throw new Error("Could not load tasks");
+      tasks = await response.json();
+      renderTasks();
+    } catch (error) {
+      showMessage(error.message, true);
+    }
+  }
+
+  // Update dashboard statistics and display filtered tasks.
+  function renderTasks() {
+    const completed = tasks.filter(task => task.completed).length;
+
+    document.getElementById("totalTasks").textContent = tasks.length;
+    document.getElementById("completedTasks").textContent = completed;
+    document.getElementById("pendingTasks").textContent = tasks.length - completed;
+
+    const query = search.value.toLowerCase();
+    const selected = filter.value;
+
+    const visible = tasks.filter(task => {
+      const matchesSearch = task.title.toLowerCase().includes(query);
+      const matchesFilter =
+        selected === "all" ||
+        (selected === "completed" && task.completed) ||
+        (selected === "pending" && !task.completed);
+
+      return matchesSearch && matchesFilter;
+    });
+
+    taskList.replaceChildren();
+
+    document.getElementById("emptyMessage").hidden = visible.length > 0;
+
+    visible.forEach(task => {
+      const row = document.createElement("div");
+      row.className = "task-row";
+
+      const checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.checked = task.completed;
+      checkbox.setAttribute("aria-label", "Mark task completed");
+
+      checkbox.addEventListener("change", () =>
+        updateTask(task.id, { completed: checkbox.checked })
+      );
+
+      const title = document.createElement("span");
+      title.className = task.completed ? "task-title completed" : "task-title";
+      title.textContent = task.title;
+
+      const edit = document.createElement("button");
+      edit.textContent = "Edit";
+      edit.className = "secondary-button";
+      edit.addEventListener("click", () => startEditing(task));
+
+      const remove = document.createElement("button");
+      remove.textContent = "Delete";
+      remove.className = "delete-button";
+      remove.addEventListener("click", () => deleteTask(task.id));
+
+      row.append(checkbox, title, edit, remove);
+      taskList.appendChild(row);
+    });
+  }
+
+  // Create a new task or update an existing task.
+  form.addEventListener("submit", async event => {
+    event.preventDefault();
+
+    const title = titleInput.value.trim();
+    if (!title) return showMessage("Enter a task title.", true);
+
+    const editing = editingId !== null;
+    const url = editing ? `${API}/${editingId}` : API;
+
+    try {
+      const response = await fetch(url, {
+        method: editing ? "PUT" : "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title })
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Unable to save task");
+
+      form.reset();
+      editingId = null;
+      document.getElementById("formHeading").textContent = "Add a New Task";
+      document.getElementById("saveButton").textContent = "Add Task";
+      document.getElementById("cancelButton").hidden = true;
+
+      showMessage(editing ? "Task updated successfully." : "Task added successfully.");
+      await loadTasks();
+    } catch (error) {
+      showMessage(error.message, true);
+    }
+  });
+
+  // Load a task into the form for editing.
+  function startEditing(task) {
+    editingId = task.id;
+    titleInput.value = task.title;
+    document.getElementById("formHeading").textContent = "Edit Task";
+    document.getElementById("saveButton").textContent = "Save Changes";
+    document.getElementById("cancelButton").hidden = false;
+    titleInput.focus();
+  }
+
+  // Update a task's completion status.
+  async function updateTask(id, changes) {
+    try {
+      const response = await fetch(`${API}/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(changes)
+      });
+
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error || "Update failed");
+
+      showMessage("Task status updated.");
+      await loadTasks();
+    } catch (error) {
+      showMessage(error.message, true);
+      await loadTasks();
+    }
+  }
+
+  // Delete a task from the database.
+  async function deleteTask(id) {
+    if (!confirm("Are you sure you want to delete this task?")) return;
+
+    try {
+      const response = await fetch(`${API}/${id}`, { method: "DELETE" });
+      const result = await response.json();
+
+      if (!response.ok) throw new Error(result.error || "Delete failed");
+
+      showMessage("Task deleted successfully.");
+      await loadTasks();
+    } catch (error) {
+      showMessage(error.message, true);
+    }
+  }
+
+  // Cancel the current edit operation.
+  document.getElementById("cancelButton").addEventListener("click", () => {
+    editingId = null;
+    form.reset();
+    document.getElementById("formHeading").textContent = "Add a New Task";
+    document.getElementById("saveButton").textContent = "Add Task";
+    document.getElementById("cancelButton").hidden = true;
+  });
+
+  // Refresh the visible task list when searching or filtering.
+  search.addEventListener("input", renderTasks);
+  filter.addEventListener("change", renderTasks);
+
+  // Load saved tasks when the page opens.
+  loadTasks();
+});
+</script>

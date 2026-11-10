@@ -3,6 +3,8 @@ import http from 'k6/http';
 import { check, sleep } from 'k6';
 
 // Configure the load test: 500 concurrent virtual users for 60 seconds.
+const BASE_URL = __ENV.BASE_URL || 'http://127.0.0.1:61878';
+
 export const options = {
   scenarios: {
     taskmanager_load: {
@@ -23,7 +25,7 @@ export const options = {
 export default function () {
 
   // Send a GET request to retrieve tasks from the Kubernetes application.
-  const response = http.get('http://127.0.0.1:8080/tasks');
+    const response = http.get(BASE_URL + '/tasks');
 
   // Verify that the API responds successfully with JSON.
   check(response, {

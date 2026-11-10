@@ -1,10 +1,192 @@
-/*
- * This is a manifest file that'll be compiled into application.css.
- *
- * With Propshaft, assets are served efficiently without preprocessing steps. You can still include
- * application-wide styles in this file, but keep in mind that CSS precedence will follow the standard
- * cascading order, meaning styles declared later in the document or manifest will override earlier ones,
- * depending on specificity.
- *
- * Consider organizing styles into separate files for maintainability.
- */
+﻿* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #f4f6fb;
+  color: #182230;
+  font-family: Arial, sans-serif;
+}
+
+.app-container {
+  max-width: 1050px;
+  margin: auto;
+  padding: 24px;
+}
+
+.topbar, .task-toolbar, .task-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.topbar {
+  padding: 18px 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.topbar h1 {
+  margin: 0;
+  color: #3156c8;
+}
+
+.topbar p, .welcome p {
+  color: #64748b;
+}
+
+.status-badge {
+  color: #15803d;
+  background: #dcfce7;
+  padding: 9px 14px;
+  border-radius: 20px;
+  font-size: 13px;
+}
+
+.welcome {
+  padding: 30px 0 15px;
+}
+
+.welcome h2 {
+  font-size: 30px;
+  margin-bottom: 8px;
+}
+
+.stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 16px;
+  margin: 20px 0;
+}
+
+.stat-card, .task-panel {
+  background: white;
+  padding: 22px;
+  border-radius: 12px;
+  box-shadow: 0 3px 15px rgba(0,0,0,.05);
+}
+
+.stat-card span {
+  display: block;
+  color: #64748b;
+}
+
+.stat-card strong {
+  display: block;
+  margin-top: 12px;
+  font-size: 30px;
+  color: #3156c8;
+}
+
+.task-panel {
+  margin: 20px 0;
+}
+
+.task-panel h2 {
+  margin-top: 0;
+}
+
+input:not([type="checkbox"]), select {
+  padding: 12px;
+  border: 1px solid #cbd5e1;
+  border-radius: 7px;
+  font-size: 14px;
+}
+
+#taskTitle {
+  width: 70%;
+}
+
+button {
+  border: 0;
+  border-radius: 7px;
+  padding: 12px 17px;
+  cursor: pointer;
+  background: #3156c8;
+  color: white;
+  font-weight: bold;
+}
+
+button:hover {
+  opacity: .85;
+}
+
+.secondary-button {
+  background: #e2e8f0;
+  color: #182230;
+}
+
+.delete-button {
+  background: #fee2e2;
+  color: #b91c1c;
+}
+
+.task-toolbar {
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.task-row {
+  padding: 15px 0;
+  border-top: 1px solid #e2e8f0;
+}
+
+.task-title {
+  flex: 1;
+}
+
+.completed {
+  text-decoration: line-through;
+  color: #94a3b8;
+}
+
+#emptyMessage {
+  color: #64748b;
+  text-align: center;
+  padding: 20px;
+}
+
+#message {
+  min-height: 18px;
+}
+
+footer {
+  text-align: center;
+  color: #64748b;
+  padding: 30px;
+  font-size: 13px;
+}
+
+[hidden] {
+  display: none !important;
+}
+
+@media (max-width: 650px) {
+  .app-container {
+    padding: 14px;
+  }
+
+  .stats {
+    grid-template-columns: 1fr;
+  }
+
+  #taskTitle {
+    width: 100%;
+  }
+
+  #taskForm {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .task-row {
+    flex-wrap: wrap;
+  }
+
+  .task-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+}

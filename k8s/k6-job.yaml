@@ -1,0 +1,32 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: taskmanager-k6-test
+spec:
+  backoffLimit: 0
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: k6
+          image: grafana/k6:latest
+          args:
+            - run
+            - /scripts/loadtest.js
+          env:
+            - name: BASE_URL
+              value: "http://taskmanager-service:3000"
+          volumeMounts:
+            - name: test-script
+              mountPath: /scripts
+          resources:
+            requests:
+              cpu: 250m
+              memory: 512Mi
+            limits:
+              cpu: "1"
+              memory: 1Gi
+      volumes:
+        - name: test-script
+          configMap:
+            name: taskmanager-k6-script

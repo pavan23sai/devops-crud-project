@@ -9,5 +9,6 @@ Rails.application.routes.draw do
   post   "/tasks",     to: "tasks#create"
   put    "/tasks/:id", to: "tasks#update"
   delete "/tasks/:id", to: "tasks#destroy"
-
+# Display the Task Manager dashboard at the website homepage.
+root "home#index"
 end

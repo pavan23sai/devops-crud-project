@@ -2,9 +2,17 @@
 
 ## 1. Project Overview
 
-This project implements a containerized Task Manager application using Ruby on Rails and MySQL. The application is deployed using Docker Compose and Kubernetes (Minikube).
+This project implements a Task Manager application using Ruby on Rails and MySQL. The application is containerized with Docker, managed using Docker Compose, and deployed to Kubernetes using Minikube.
 
-The project demonstrates containerization, database persistence, Kubernetes orchestration, health monitoring, horizontal scaling, fault tolerance and performance testing.
+The project demonstrates:
+
+- Application containerization using a multi-stage Dockerfile.
+- Database integration and persistent storage.
+- Kubernetes Deployments, Services and health probes.
+- CPU and memory monitoring.
+- Horizontal Pod Autoscaling (HPA).
+- Application recovery and fault-tolerance testing.
+- Performance testing using Grafana k6.
 
 ## 2. Technology Stack
 
@@ -18,18 +26,21 @@ The project demonstrates containerization, database persistence, Kubernetes orch
 | Multi-container Management | Docker Compose |
 | Orchestration | Kubernetes |
 | Local Kubernetes Cluster | Minikube |
-| Load Testing | k6 |
+| Load Testing | Grafana k6 |
 | Operating System | Windows 11 |
 
 ## 3. Application Features
 
-The application supports:
+The application provides a web-based Task Manager dashboard.
+
+Features include:
 
 - Create tasks.
 - Retrieve all tasks.
 - Update task titles and completion status.
 - Delete tasks.
-- Search and filter tasks through the frontend.
+- Search and filter tasks.
+- View total, completed and pending task statistics.
 - Health checking through `/up`.
 
 ### API Endpoints
@@ -49,14 +60,18 @@ devops-crud-project/
 ├── app/
 │   ├── controllers/
 │   ├── models/
-│   └── views/
+│   ├── views/
+│   ├── assets/
+│   └── javascript/
 ├── config/
 ├── db/
 │   └── migrate/
 ├── k8s/
 │   ├── app.yaml
 │   ├── hpa.yaml
-│   └── loadtest.js
+│   ├── loadtest.js
+│   ├── k6-job.yaml
+│   └── k6-results-final.txt
 ├── Dockerfile
 ├── docker-compose.yaml
 ├── .dockerignore
@@ -68,12 +83,13 @@ devops-crud-project/
 
 ## 5. Docker Implementation
 
-The Dockerfile uses a multi-stage build:
+The Dockerfile uses a multi-stage build to separate application dependencies and build operations from the runtime image.
 
 - Builder stage: `ruby:3.3`
 - Runtime stage: `ruby:3.3-slim`
 - Puma runs the Rails application on port 3000.
-- The application runs using a non-root user.
+- The application runs using a non-root Linux user.
+- The Docker build excludes local secrets such as `config/master.key`.
 
 Docker Compose includes:
 
@@ -81,7 +97,8 @@ Docker Compose includes:
 - MySQL 8.4 database service.
 - Named volumes for persistent database and application data.
 - A named bridge network.
-- Health checks and database dependency management.
+- MySQL health checks and application health checks.
+- Database dependency management.
 
 ### Start the application
 
@@ -103,6 +120,8 @@ docker compose down
 
 ## 6. Kubernetes Deployment
 
+The application is deployed on a local Minikube Kubernetes cluster.
+
 The Kubernetes configuration includes:
 
 - Rails Deployment.
@@ -111,10 +130,12 @@ The Kubernetes configuration includes:
 - MySQL PersistentVolumeClaim (2 GiB).
 - MySQL ClusterIP Service.
 - Rails NodePort Service (30080).
-- Readiness and liveness probes.
+- Readiness and liveness probes using `/up`.
 - CPU and memory requests and limits.
 
-### Deploy
+The Rails Deployment starts with one replica. The HPA manages the number of replicas between one and three.
+
+### Deploy the application
 
 ```bash
 kubectl apply -f k8s/app.yaml
@@ -138,90 +159,53 @@ kubectl get services
 kubectl logs deployment/taskmanager
 ```
 
+### Access the application
+
+```text
+http://<minikube-ip>:30080
+```
+
+The NodePort Service provides access to the application from outside the Kubernetes cluster in the local Minikube environment.
+
 ## 7. Horizontal Pod Autoscaling
 
-The project includes a HorizontalPodAutoscaler configured with:
+The project uses a HorizontalPodAutoscaler with the following final configuration:
 
-- Minimum replicas: 1
-- Maximum replicas: 3
-- Target average CPU utilization: 70%
+| Setting | Value |
+|---|---:|
+| Minimum replicas | 1 |
+| Maximum replicas | 3 |
+| CPU utilization target | 70% |
 
-Apply the HPA:
+The CPU utilization target is calculated relative to the CPU request configured for the Rails container.
+
+### Apply HPA
 
 ```bash
 kubectl apply -f k8s/hpa.yaml
 ```
 
-Check its status:
+### Check HPA
 
 ```bash
-kubectl get hpa
+kubectl get hpa taskmanager-hpa
 ```
+
+### HPA scaling demonstration
+
+A controlled scaling demonstration was performed by temporarily lowering the CPU utilization target from 70% to 40%.
+
+During the load test:
+
+- HPA reported CPU utilization of 431% against the temporary 40% target.
+- The desired replica count increased from one to three.
+- Kubernetes created two additional Rails pods.
+- All three Rails pods reached `1/1 Running`.
+
+After the demonstration, the original 70% target was restored and verified.
+
+The application returned to one replica when the workload subsided.
+
+The temporary 40% target was used only for demonstration. The committed HPA configuration retains the required 70% target.
 
 ## 8. Performance Testing
-
-Performance testing was performed using k6.
-
-Test configuration:
-
-- Virtual users: 500
-- Duration: 60 seconds
-- Endpoint: `GET /tasks`
-
-The first test through the Minikube service tunnel produced:
-
-- Total HTTP requests: 12,961
-- HTTP failure rate: 87.97%
-- Average latency: 1.31 seconds
-- P95 latency: 7.65 seconds
-
-A second test using port-forwarding also experienced connection failures:
-
-- Total HTTP requests: 5,023
-- HTTP failure rate: 65.06%
-- Average latency: 4.99 seconds
-- P95 latency: 14.68 seconds
-
-These results indicate that the test environment did not reliably handle the 500-user workload. They are reported as observed results, not as successful performance targets.
-
-## 9. Observability and Fault Tolerance
-
-Kubernetes resource monitoring was performed using:
-
-```bash
-kubectl top pods
-```
-
-A sample observation after switching Puma to single mode:
-
-| Component | CPU | Memory |
-|---|---:|---:|
-| Rails | 18m | 97 MiB |
-| MySQL | 20m | 483 MiB |
-
-Fault tolerance was tested by terminating the Rails container's main process.
-
-Observed results:
-
-- Restart count increased from 0 to 1.
-- Kubernetes automatically restarted the container.
-- The Rails pod returned to `1/1 Running`.
-- Previously stored task data remained available.
-
-## 10. Assumptions and Limitations
-
-- Minikube is used as a local Kubernetes environment.
-- The project uses demonstration database credentials; they are not suitable for production.
-- Kubernetes Secrets in this local demonstration are not a replacement for production-grade secret management.
-- The load test was executed on a resource-limited local environment.
-- The 500-user test produced substantial request failures and requires further performance tuning.
-- MySQL memory usage approached its configured 512 MiB limit during monitoring.
-- HPA was configured with a CPU utilization target of 70%.
-
-## 11. Conclusion
-
-This project demonstrates the complete deployment workflow of a Ruby on Rails application using Docker, Docker Compose, MySQL and Kubernetes.
-
-It also demonstrates Kubernetes health monitoring, resource monitoring, automatic container recovery, horizontal pod autoscaling and load testing.
-
-The performance testing results identify areas for future optimization, particularly application stability, database resource usage and concurrent request handling.
